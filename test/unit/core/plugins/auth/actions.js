@@ -174,6 +174,73 @@ describe("auth plugin - actions", () => {
       expect(system.fn.fetch.mock.calls[0][0].url)
         .toEqual("http://google.com/authorize?q=1&myCustomParam=abc123")
     })
+
+    it("should make a simple request that doesn't trigger CORS preflight", () => {
+
+      // Given
+      const data = {
+        url: "/authorize?q=1"
+      }
+      const system = {
+        fn: {
+          fetch: jest.fn().mockImplementation(() => Promise.resolve())
+        },
+        errActions: {
+          newAuthErr: () => ({})
+        },
+        getConfigs: () => ({}),
+        authSelectors: {
+          getConfigs: () => ({
+            additionalQueryStringParams: {
+              myCustomParam: "abc123"
+            }
+          })
+        },
+        oas3Selectors: {
+          selectedServer: () => "http://google.com",
+          serverEffectiveValue: () => "http://google.com"
+        },
+        specSelectors: {
+          isOAS3: () => true,
+        }
+      }
+
+      // When
+      authorizeRequest(data)(system)
+
+      // Then
+      // source: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+      const allowed_methods = ["get", "head", "post"]
+      const allowed_headers = [
+        "accept",
+        "accept-language",
+        "content-language",
+        "content-type",
+        "dpr",
+        "downlink",
+        "save-data",
+        "viewport-width",
+        "width"
+      ]
+      const allowed_types = [
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        "text/plain"
+      ]
+
+      expect(system.fn.fetch.mock.calls.length).toEqual(1)
+
+      expect(allowed_methods)
+        .toContain(system.fn.fetch.mock.calls[0][0].method.toLowerCase())
+      const reqHeaders = system.fn.fetch.mock.calls[0][0].headers
+      Object.keys(reqHeaders).forEach(header => {
+        expect(allowed_headers).toContain(header.toLowerCase())
+
+        if (header.toLowerCase() == "content-type") {
+          expect(allowed_types).toContain(reqHeaders[header])
+        }
+      })
+    })
   })
 
   describe("tokenRequest", function () {
